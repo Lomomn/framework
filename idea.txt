@@ -1,0 +1,13 @@
+state = {
+	text: 'hello world'
+}
+
+vdom = {
+	name: 'div',
+	is: 'div',
+	props: {
+		text: ()=>state.text
+	},
+	children: {}
+}
+
