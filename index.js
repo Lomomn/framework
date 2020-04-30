@@ -1,86 +1,98 @@
 import './style.styl'
 
-// realized that i should assign key automatically, probably using the constructor function
-let keyCounter = 0
+let key = 0
 
+// Create the dom using vdom
 function create(node){
-	console.log(node)
-	let [name, props, children] = node
-	console.log('des',name, props, children)
-	props.key = keyCounter
-	keyCounter += 1
-	if (name==='text'){
-		if (typeof props === 'function'){
-			// monitor[]
-			props = props()
-		}
-		return document.createTextNode(props)
-	}else{
-		
+	let el = document.createElement(node.name)
+	node.domReference = el
+	el.vdomRef = node
+	
+	if (node.props.external)
+		node.props.external.forEach(v => register(v, node))
+	
+	if (node.props.classes)
+		el.classList.add(...node.props.classes)
+	
+	if (node.props.text){
+		el.appendChild(
+			document.createTextNode(
+				typeof node.props.text === 'function' ? node.props.text(node.props) : node.props.text))
 	}
-		
-	let el = document.createElement(name)
-	if (children)
-		children.forEach(c => el.appendChild(create(c)))
+	
+	if (node.props.events){
+		Object.keys(node.props.events)
+			.forEach(k =>
+					el.addEventListener(k, node.props.events[k].bind(node)))
+	}
+	
+	node.children.forEach(child => {
+			el.appendChild(create(child))
+	})
 	return el
 }
 
-let state = {value: 100}
-let monitor = []
-function changeState(n, node, key, value){
-	node.parentNode.replaceChild(create(n), node)
+// Create vdom
+function c(name, props, children=[]){
+	key += 1
+	return {name, props, children, key}
 }
-function getStateValue(key){
+
+// Application state
+let state = {
+	value: 0,
+	otherValue: 100
+}
+let watchers = {}
+function register(key, ref){
+	if (!watchers[key]){
+		watchers[key] = {}
+	}
+	ref.props[key] = state[key]
+	watchers[key][ref.key] = ref
+}
+function updateState(key, value){
+	state[key] = value
+	// update all watchers
+	Object.keys(watchers[key]).forEach(i => {
+		let watcher = watchers[key][i]
+		let node = watcher
+		let el = watcher.domReference
+		node.props[key] = value
+		el.parentNode.replaceChild(create(node), el)
+	})
 	
-	return state[key]
 }
 
-let vdom = 
-['div',
-	{},
+let vdom =
+c('div', {classes: ['container']},
+[
+	
+	c('div', {},
 	[
-		['p',
-			{},
-			[['text', 'hello']]
-		],
-		['p',
-			{},
-			[['text', ()=>getStateValue('value')]]
-		]
-	]
-]
-console.log('vdom',vdom)
+		c('label', {
+			external: ['value'],
+			text: (props)=>'clicked: '+props.value}),
+		c('button', {
+			text: 'click me',
+			events: {
+				click: function(){updateState('value', state.value+1)}
+			}})
+	]),
+	
+	c('div', {},
+	[
+		c('label', {
+			external: ['otherValue'],
+			text: (props)=>'clicked: '+props.otherValue}),
+		c('button', {
+			text: 'click me',
+			events: {
+				click: function(){updateState('otherValue', state.otherValue+1)}
+			}})
+	])
+])
 
-
-// function create(n){
-// 	let el = document.createElement(n.type)
-// 	if (n.events)
-// 		Object.keys(n.events).forEach(k => {
-// 			switch (k) {
-// 				case 'ready':
-// 					n.events[k].bind(n)(n.data) // data as props
-// 					break
-// 				default:
-// 					el.addEventListener(k, (e)=>{
-// 						let parent = el.parentNode
-// 						n.events[k].bind(n)(n.data)
-// 						parent.replaceChild(create(n), el)
-// 					})
-// 					break
-// 			}
-// 		})
-// 	if (n.data.classes)
-// 		el.classList.add(...n.data.classes)
-// 	if (n.children){
-// 		n.children.forEach(c => {
-// 			c.data = Object.assign({...n.data, classes: ''}, c.data)
-// 			el.appendChild(create(c))
-// 		})
-// 	}
-// 	if (n.data.value)
-// 		el.appendChild(document.createTextNode(n.data.value))
-// 	return el
-// }
 
 window.addEventListener('DOMContentLoaded', e => {
 	let root = document.getElementById('app')
